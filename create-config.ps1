@@ -23,7 +23,6 @@ Get-UcsManagedObject -Dn sys | Set-UcsManagedObject -PropertyMap @{name = $hostn
 # Create suborganizations
 foreach ($env in $environments) {
     Get-UcsOrg -Level root | Add-UcsOrg $env -ModifyPresent
-    
 }
 
 # Disconnect from UCS Manager
