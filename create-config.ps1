@@ -17,7 +17,7 @@ $ip_pool_size = 100
 
 # Connect to UCS Manager using a session xml file and a secure key defined in a key file
 $key = ConvertTo-SecureString (Get-Content .\ucs.key)
-$handle = Connect-Ucs -Key $key -LiteralPath .\ucs.xml
+$handle = Connect-Ucs -Key $key -LiteralPath .\ucs$handle1 = Connect-Ucs -Name.xml
 
 # Set UCS system name
 # This uses the generic Set-UcsManagedObject method, because no specific cmdlet exists
