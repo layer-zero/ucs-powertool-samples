@@ -62,11 +62,11 @@ foreach ($env in $environments) {
 }
 
 # Create static infrastructure VLANs 
-Get-UcsLanCloud | Add-UcsVlan -Id $mgmt_vlan -Name $mgmt_vlan"_mgmt_dc"$site_id -DefaultNet "no" -ModifyPresent
-Get-UcsLanCloud | Add-UcsVlan -Id $vmotion_vlan -Name $vmotion_vlan"_vmotion_dc"$site_id -DefaultNet "no" -ModifyPresent
-Get-UcsLanCloud | Add-UcsVlan -Id $iscsi_a_vlan -Name $iscsi_a_vlan"_iscsi_a_dc"$site_id -DefaultNet "no" -ModifyPresent
-Get-UcsLanCloud | Add-UcsVlan -Id $iscsi_b_vlan -Name $iscsi_b_vlan"_iscsi_b_dc"$site_id -DefaultNet "no" -ModifyPresent
-Get-UcsLanCloud | Add-UcsVlan -Id $nfs_vlan -Name $nfs_vlan"_nfs_dc"$site_id -DefaultNet "no" -ModifyPresent
+Get-UcsLanCloud | Add-UcsVlan -Id $mgmt_vlan -Name $mgmt_vlan"_mgmt_dc"$site_id -DefaultNet no -ModifyPresent
+Get-UcsLanCloud | Add-UcsVlan -Id $vmotion_vlan -Name $vmotion_vlan"_vmotion_dc"$site_id -DefaultNet no -ModifyPresent
+Get-UcsLanCloud | Add-UcsVlan -Id $iscsi_a_vlan -Name $iscsi_a_vlan"_iscsi_a_dc"$site_id -DefaultNet no -ModifyPresent
+Get-UcsLanCloud | Add-UcsVlan -Id $iscsi_b_vlan -Name $iscsi_b_vlan"_iscsi_b_dc"$site_id -DefaultNet no -ModifyPresent
+Get-UcsLanCloud | Add-UcsVlan -Id $nfs_vlan -Name $nfs_vlan"_nfs_dc"$site_id -DefaultNet no -ModifyPresent
 
 # Create dynamic VLANs for VMs
 # To save time during reruns of the script, we check for existence of the VLAN instead of using the -ModifyPresent switch
@@ -75,18 +75,18 @@ $vlan_names = $mo | Get-UcsManagedObject -ClassId fabricVlan | Select Name | Out
 for ($i=$dynamic_vlan_start;$i -le $dynamic_vlan_end; $i++) {
     $vlan_exists = $vlan_names.Contains("vm_dynamic_$i")
     if (-Not $vlan_exists) {
-        $mo | Add-UcsVlan -Id $i -Name "vm_dynamic_$i" -DefaultNet "no"
+        $mo | Add-UcsVlan -Id $i -Name "vm_dynamic_$i" -DefaultNet no
     }
 }
 
 # Set MTU to Jumbo frames (9216 bytes) for Best-Effort QoS class 
-Get-UcsBestEffortQosClass | Set-UcsBestEffortQosClass -Mtu "9216" -Force
+Get-UcsBestEffortQosClass | Set-UcsBestEffortQosClass -Mtu 9216 -Force
 
 # Set power control policy to grid redundancy
-Get-UcsPowerControlPolicy | Set-UcsPowerControlPolicy -Redundancy "grid" -Force
+Get-UcsPowerControlPolicy | Set-UcsPowerControlPolicy -Redundancy grid -Force
 
 # Set chassis discovery policy to 1-link and port-channel
-Get-UcsChassisDiscoveryPolicy | Set-UcsChassisDiscoveryPolicy -Action "1-link" -LinkAggregationPref "port-channel" -Force
+Get-UcsChassisDiscoveryPolicy | Set-UcsChassisDiscoveryPolicy -Action 1-link -LinkAggregationPref port-channel -Force
 
 # Create BIOS policy for ESXi hosts
 # Based on recommendations from https://datacenterdennis.wordpress.com/2016/12/09/cisco-ucs-bios-policy-recommendations/
@@ -130,6 +130,29 @@ $mo | Set-UcsBiosVfDramRefreshRate -VpDramRefreshRate auto -Force
 $mo | Set-UcsBiosVfSelectMemoryRASConfiguration -VpSelectMemoryRASConfiguration maximum-performance -Force
 $mo | Set-UcsBiosVfDDR3VoltageSelection -VpDDR3VoltageSelection ddr3-1350mv -Force
 $mo | Set-UcsBiosVfConsoleRedirection -VpConsoleRedirection disabled -Force
+
+# Create iSCSI boot policy
+$mo = Get-UcsOrg -Level root | Add-UcsBootPolicy -Name "esxi_iscsi_boot" -BootMode legacy -EnforceVnicName yes -RebootOnUpdate no -Descr "Boot from iSCSI for ESXi hosts" -ModifyPresent
+$mo | Add-UcsLsbootVirtualMedia -Access read-only -LunId 0 -Order 1 -ModifyPresent
+$mo_1 = $mo | Add-UcsLsbootIScsi -Order 2 -ModifyPresent
+$mo_1 | Add-UcsLsbootIScsiImagePath -ISCSIVnicName "iscsi_a" -Type primary -ModifyPresent
+$mo_1 | Add-UcsLsbootIScsiImagePath -ISCSIVnicName "iscsi_b" -Type secondary -ModifyPresent
+
+# Creat local disk policy for diskless blades
+Get-UcsOrg -Level root | Add-UcsLocalDiskConfigPolicy -Name "no_local_disk" -Mode no-local-storage -FlexFlashState disable -FlexFlashRAIDReportingState disable -ModifyPresent
+
+# Create local disk policy using RAID-1 for servers with local hard disks or SSDs
+Get-UcsOrg -Level root | Add-UcsLocalDiskConfigPolicy -Name "local_disk_raid1" -Mode raid-mirrored -ProtectConfig yes -FlexFlashState disable -FlexFlashRAIDReportingState disable -ModifyPresent
+
+# Create maintenance policy set to user-ack, apply on next reboot
+Get-UcsOrg -Level root | Add-UcsMaintenancePolicy -Name "user_ack" -UptimeDisr user-ack -SoftShutdownTimer never -TriggerConfig on-next-boot -ModifyPresent
+
+# Set default maintenance policy to user-ack
+Get-UcsOrg -Level root | Get-UcsMaintenancePolicy -Name "default" | Set-UcsMaintenancePolicy -UptimeDisr user-ack -Force
+
+# Create a network control policy that enables CDP and disables LLDP
+$mo = Get-UcsOrg -Level root  | Add-UcsNetworkControlPolicy -Name "cdp_on_lldp_off" -Cdp enabled -LldpReceive disabled -LldpTransmit disabled -UplinkFailAction link-down -MacRegisterMode only-native-vlan -Descr "CDP enabled, LLDP disabled" -ModifyPresent
+$mo | Add-UcsPortSecurityConfig -Forge allow -ModifyPresent 
 
 # Disconnect from UCS Manager
 Disconnect-Ucs -Ucs $handle
