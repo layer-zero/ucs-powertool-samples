@@ -15,6 +15,15 @@ $ip_prefix = "192.168.218"
 $ip_mask = "255.255.255.0"
 $ip_pool_size = 100
 
+$mgmt_vlan = 101
+$vmotion_vlan = 102
+$iscsi_a_vlan = 103
+$iscsi_b_vlan = 104
+$nfs_vlan = 105
+
+$dynamic_vlan_start = 1001
+$dynamic_vlan_end = 1200
+
 # Connect to UCS Manager using a session xml file and a secure key defined in a key file
 $key = ConvertTo-SecureString (Get-Content .\ucs.key)
 $handle = Connect-Ucs -Key $key -LiteralPath .\ucs.xml
@@ -50,6 +59,23 @@ foreach ($env in $environments) {
     $mo = Get-UcsOrg -name $env  | Add-UcsIpPool -AssignmentOrder "sequential" -Descr "IP pool for $env service profiles" -Name $pool_name -ModifyPresent
     $mo | Add-UcsIpPoolBlock -DefGw "$ip_prefix.254" -From $first_ip -To $last_ip -Subnet $ip_mask -ModifyPresent
     $n = $n + 1
+}
+
+# Create static infrastructure VLANs 
+Get-UcsLanCloud | Add-UcsVlan -Id $mgmt_vlan -Name $mgmt_vlan"_mgmt_dc"$site_id -DefaultNet "no" -ModifyPresent
+Get-UcsLanCloud | Add-UcsVlan -Id $vmotion_vlan -Name $vmotion_vlan"_vmotion_dc"$site_id -DefaultNet "no" -ModifyPresent
+Get-UcsLanCloud | Add-UcsVlan -Id $iscsi_a_vlan -Name $iscsi_a_vlan"_iscsi_a_dc"$site_id -DefaultNet "no" -ModifyPresent
+Get-UcsLanCloud | Add-UcsVlan -Id $iscsi_b_vlan -Name $iscsi_b_vlan"_iscsi_b_dc"$site_id -DefaultNet "no" -ModifyPresent
+Get-UcsLanCloud | Add-UcsVlan -Id $nfs_vlan -Name $nfs_vlan"_nfs_dc"$site_id -DefaultNet "no" -ModifyPresent
+
+# Create dynamic VLANs for VMs
+# To save time during reruns of the script, we check for existence of the VLAN instead of using the -ModifyPresent switch
+$mo = Get-UcsLanCloud 
+for ($i=$dynamic_vlan_start;$i -le $dynamic_vlan_end; $i++) {
+    $vlan = Get-UcsVlan -Name "vm_dynamic_$i"
+    if (-Not $vlan) {
+        $mo | Add-UcsVlan -Id $i -Name "vm_dynamic_$i" -DefaultNet "no"
+    }
 }
 
 # Disconnect from UCS Manager
