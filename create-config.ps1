@@ -79,5 +79,57 @@ for ($i=$dynamic_vlan_start;$i -le $dynamic_vlan_end; $i++) {
     }
 }
 
+# Set MTU to Jumbo frames (9216 bytes) for Best-Effort QoS class 
+Get-UcsBestEffortQosClass | Set-UcsBestEffortQosClass -Mtu "9216" -Force
+
+# Set power control policy to grid redundancy
+Get-UcsPowerControlPolicy | Set-UcsPowerControlPolicy -Redundancy "grid" -Force
+
+# Set chassis discovery policy to 1-link and port-channel
+Get-UcsChassisDiscoveryPolicy | Set-UcsChassisDiscoveryPolicy -Action "1-link" -LinkAggregationPref "port-channel" -Force
+
+# Create BIOS policy for ESXi hosts
+# Based on recommendations from https://datacenterdennis.wordpress.com/2016/12/09/cisco-ucs-bios-policy-recommendations/
+$mo = Get-UcsOrg -Level root | Add-UcsBiosPolicy -Descr "BIOS policy for generic ESXi hosts" -Name "esxi_bios" -RebootOnUpdate yes -ModifyPresent
+$mo | Set-UcsBiosVfSerialPortAEnable -VpSerialPortAEnable disabled -Force
+$mo | Set-UcsBiosVfQuietBoot -VpQuietBoot disabled -Force
+$mo | Set-UcsBiosVfPOSTErrorPause -VpPOSTErrorPause disabled -Force
+$mo | Set-UcsBiosVfFrontPanelLockout -VpFrontPanelLockout disabled -Force
+$mo | Set-UcsBiosVfConsistentDeviceNameControl -VpCDNControl disabled -Force
+$mo | Set-UcsBiosVfResumeOnACPowerLoss -VpResumeOnACPowerLoss last-state -Force
+$mo | Set-UcsBiosVfQPILinkFrequencySelect -VpQPILinkFrequencySelect auto -Force
+$mo | Set-UcsBiosVfQPISnoopMode -VpQPISnoopMode home-snoop -Force
+$mo | Set-UcsBiosVfTrustedPlatformModule -VpTrustedPlatformModuleSupport enabled -Force
+$mo | Set-UcsBiosVfIntelTrustedExecutionTechnology -VpIntelTrustedExecutionTechnologySupport enabled -Force
+$mo | Set-UcsBiosExecuteDisabledBit -VpExecuteDisableBit enabled -Force
+$mo | Set-UcsBiosVfDirectCacheAccess -VpDirectCacheAccess enabled -Force
+$mo | Set-UcsBiosVfLocalX2Apic -VpLocalX2Apic auto -Force
+$mo | Set-UcsBiosVfFrequencyFloorOverride -VpFrequencyFloorOverride enabled -Force
+$mo | Set-UcsBiosVfDRAMClockThrottling -VpDRAMClockThrottling auto -Force
+$mo | Set-UcsBiosVfInterleaveConfiguration -VpChannelInterleaving auto -VpRankInterleaving auto -Force
+$mo | Set-UcsBiosVfAltitude -VpAltitude auto -Force
+$mo | Set-UcsBiosTurboBoost -VpIntelTurboBoostTech enabled -Force
+$mo | Set-UcsBiosEnhancedIntelSpeedStep -VpEnhancedIntelSpeedStepTech enabled -Force
+$mo | Set-UcsBiosHyperThreading -VpIntelHyperThreadingTech enabled -Force
+$mo | Set-UcsBiosVfCoreMultiProcessing -VpCoreMultiProcessing all -Force
+$mo | Set-UcsBiosVfIntelVirtualizationTechnology -VpIntelVirtualizationTechnology enabled -Force
+$mo | Set-UcsBiosVfProcessorEnergyConfiguration -VpEnergyPerformance performance -VpPowerTechnology performance -Force
+$mo | Set-UcsBiosVfProcessorCState -VpProcessorCState enabled -Force
+$mo | Set-UcsBiosVfProcessorC1E -VpProcessorC1E enabled -Force
+$mo | Set-UcsBiosVfCPUPerformance -VpCPUPerformance enterprise -Force
+$mo | Set-UcsBiosVfPackageCStateLimit -VpPackageCStateLimit c1 -Force
+$mo | Set-UcsBiosVfProcessorC3Report -VpProcessorC3Report disabled -Force
+$mo | Set-UcsBiosVfProcessorC6Report -VpProcessorC6Report disabled -Force
+$mo | Set-UcsBiosVfProcessorC7Report -VpProcessorC7Report disabled -Force
+$mo | Set-UcsBiosVfMaxVariableMTRRSetting -VpProcessorMtrr auto-max -Force
+$mo | Set-UcsBiosVfScrubPolicies -VpDemandScrub enabled -VpPatrolScrub enabled -Force
+$mo | Set-UcsBiosIntelDirectedIO -VpIntelVTForDirectedIO enabled -Force
+$mo | Set-UcsBiosNUMA -VpNUMAOptimized enabled -Force
+$mo | Set-UcsBiosLvDdrMode -VpLvDDRMode performance-mode -Force
+$mo | Set-UcsBiosVfDramRefreshRate -VpDramRefreshRate auto -Force
+$mo | Set-UcsBiosVfSelectMemoryRASConfiguration -VpSelectMemoryRASConfiguration maximum-performance -Force
+$mo | Set-UcsBiosVfDDR3VoltageSelection -VpDDR3VoltageSelection ddr3-1350mv -Force
+$mo | Set-UcsBiosVfConsoleRedirection -VpConsoleRedirection disabled -Force
+
 # Disconnect from UCS Manager
 Disconnect-Ucs -Ucs $handle
