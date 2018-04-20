@@ -70,10 +70,11 @@ Get-UcsLanCloud | Add-UcsVlan -Id $nfs_vlan -Name $nfs_vlan"_nfs_dc"$site_id -De
 
 # Create dynamic VLANs for VMs
 # To save time during reruns of the script, we check for existence of the VLAN instead of using the -ModifyPresent switch
-$mo = Get-UcsLanCloud 
+$mo = Get-UcsLanCloud
+$vlan_names = $mo | Get-UcsManagedObject -ClassId fabricVlan | Select Name | Out-String -Stream
 for ($i=$dynamic_vlan_start;$i -le $dynamic_vlan_end; $i++) {
-    $vlan = Get-UcsVlan -Name "vm_dynamic_$i"
-    if (-Not $vlan) {
+    $vlan_exists = $vlan_names.Contains("vm_dynamic_$i")
+    if (-Not $vlan_exists) {
         $mo | Add-UcsVlan -Id $i -Name "vm_dynamic_$i" -DefaultNet "no"
     }
 }
