@@ -11,7 +11,8 @@ $environments = @("prd", "acc", "tst", "dev")
 
 $hostname_prefix = "ucspe-"
 
-$ip_prefix = "192.168.218"
+$ip_prefix = "192.168"
+$mgmt_block = "218"
 $ip_mask = "255.255.255.0"
 $ip_pool_size = 100
 
@@ -42,11 +43,12 @@ foreach ($env in $environments) {
 # Assign IP block to ext-mgmt pool and set order to sequential
 $first_host = $ip_pool_size + 1
 $last_host = $first_host + $ip_pool_size - 1
-$first_ip = $ip_prefix+"."+$first_host
-$last_ip = $ip_prefix+"."+$last_host
+$first_ip = $ip_prefix+"."+$mgmt_block+"."+$first_host
+$last_ip = $ip_prefix+"."+$mgmt_block+"."+$last_host
+$gateway = $ip_prefix+"."+$mgmt_block+".254"
 $mo = Get-UcsOrg -Level root | Get-UcsIpPool -Name "ext-mgmt"
 $mo | Set-UcsIpPool -AssignmentOrder sequential -Force
-$mo | Add-UcsIpPoolBlock -DefGw "$ip_prefix.254" -From $first_ip -To $last_ip -Subnet $ip_mask -ModifyPresent
+$mo | Add-UcsIpPoolBlock -DefGw $gateway -From $first_ip -To $last_ip -Subnet $ip_mask -ModifyPresent
 
 # Create management IP pools for each environment
 $sub_pool_size = [int]($ip_pool_size/$environments.Length)
@@ -54,11 +56,12 @@ $n = 0
 foreach ($env in $environments) {
     $first_host = 1 + $n * $sub_pool_size
     $last_host = $first_host + $sub_pool_size - 1
-    $first_ip = $ip_prefix+"."+$first_host
-    $last_ip = $ip_prefix+"."+$last_host
+    $first_ip = $ip_prefix+"."+$mgmt_block+"."+$first_host
+    $last_ip = $ip_prefix+"."+$mgmt_block+"."+$last_host
+    $gateway = $ip_prefix+"."+$mgmt_block+".254"
     $pool_name =  $env+"_kvm_ip_dc"+$site_id
     $mo = Get-UcsOrg -name $env  | Add-UcsIpPool -AssignmentOrder "sequential" -Descr "IP pool for $env service profiles" -Name $pool_name -ModifyPresent
-    $mo | Add-UcsIpPoolBlock -DefGw "$ip_prefix.254" -From $first_ip -To $last_ip -Subnet $ip_mask -ModifyPresent
+    $mo | Add-UcsIpPoolBlock -DefGw $gateway -From $first_ip -To $last_ip -Subnet $ip_mask -ModifyPresent
     $n = $n + 1
 }
 
