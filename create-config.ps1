@@ -13,6 +13,8 @@ $hostname_prefix = "ucspe-"
 
 $ip_prefix = "192.168"
 $mgmt_block = "218"
+$iscsi_blocks = @{A = "219" 
+                  B = "220"}
 $ip_mask = "255.255.255.0"
 $ip_pool_size = 100
 
@@ -54,15 +56,41 @@ $mo | Add-UcsIpPoolBlock -DefGw $gateway -From $first_ip -To $last_ip -Subnet $i
 $sub_pool_size = [int]($ip_pool_size/$environments.Length)
 $n = 0
 foreach ($env in $environments) {
+    $pool_name =  $env+"_kvm_ip_dc"+$site_id
     $first_host = 1 + $n * $sub_pool_size
     $last_host = $first_host + $sub_pool_size - 1
     $first_ip = $ip_prefix+"."+$mgmt_block+"."+$first_host
     $last_ip = $ip_prefix+"."+$mgmt_block+"."+$last_host
     $gateway = $ip_prefix+"."+$mgmt_block+".254"
-    $pool_name =  $env+"_kvm_ip_dc"+$site_id
-    $mo = Get-UcsOrg -name $env  | Add-UcsIpPool -AssignmentOrder "sequential" -Descr "IP pool for $env service profiles" -Name $pool_name -ModifyPresent
+    $mo = Get-UcsOrg -name $env  | Add-UcsIpPool -Name $pool_name -AssignmentOrder "sequential" -Descr "IP pool for $env service profiles" -ModifyPresent
     $mo | Add-UcsIpPoolBlock -DefGw $gateway -From $first_ip -To $last_ip -Subnet $ip_mask -ModifyPresent
     $n = $n + 1
+}
+
+# Create mac address pools for fabric A and B
+foreach ($fabric in @("A", "B")) {
+    $pool_name = "esxi_mac_"+$fabric.ToLower()+"_dc"+$site_id
+    $from_mac = "00:25:B5:"+$site_id+$pod_id+":"+$fabric+"0:00"
+    $to_mac = "00:25:B5:"+$site_id+$pod_id+":"+$fabric+"1:FF"
+    $mo = Get-UcsOrg -Level root  | Add-UcsMacPool -Name $pool_name -AssignmentOrder sequential -ModifyPresent
+    $mo | Add-UcsMacMemberBlock -From $from_mac -To $to_mac -ModifyPresent
+}
+
+# Create iSCSI IP pools for each environment
+$sub_pool_size = [int]($ip_pool_size/$environments.Length)
+$n = 0
+foreach ($env in $environments) {
+    foreach ($fabric in @("A", "B")){
+		$pool_name =  $env+"_iscsi_ip_"+$fabric.ToLower()+"_dc"+$site_id
+		$first_host = 1 + $n * $sub_pool_size
+		$last_host = $first_host + $sub_pool_size - 1
+		$first_ip = $ip_prefix+"."+$iscsi_blocks[$fabric]+"."+$first_host
+		$last_ip = $ip_prefix+"."+$iscsi_blocks[$fabric]+"."+$last_host
+		$gateway = $ip_prefix+"."+$iscsi_blocks[$fabric]+".254"
+		$mo = Get-UcsOrg -name $env  | Add-UcsIpPool -Name $pool_name -AssignmentOrder "sequential" -ModifyPresent
+		$mo | Add-UcsIpPoolBlock -DefGw $gateway -From $first_ip -To $last_ip -Subnet $ip_mask -ModifyPresent
+	}
+	$n = $n + 1
 }
 
 # Create static infrastructure VLANs 
@@ -159,15 +187,6 @@ Get-UcsOrg -Level root | Get-UcsMaintenancePolicy -Name "default" | Set-UcsMaint
 # Create a network control policy that enables CDP and disables LLDP
 $mo = Get-UcsOrg -Level root  | Add-UcsNetworkControlPolicy -Name "cdp_on_lldp_off" -Cdp enabled -LldpReceive disabled -LldpTransmit disabled -UplinkFailAction link-down -MacRegisterMode only-native-vlan -Descr "CDP enabled, LLDP disabled" -ModifyPresent
 $mo | Add-UcsPortSecurityConfig -Forge allow -ModifyPresent 
-
-# Create mac address pools for fabric A and B
-foreach ($fabric in @("A", "B")) {
-    $mac_pool_name = "esxi_mac_"+$fabric.ToLower()+"_dc"+$site_id
-    $from_mac = "00:25:B5:"+$site_id+$pod_id+":"+$fabric+"0:00"
-    $to_mac = "00:25:B5:"+$site_id+$pod_id+":"+$fabric+"1:FF"
-    $mo = Get-UcsOrg -Level root  | Add-UcsMacPool -Name $mac_pool_name -AssignmentOrder sequential -ModifyPresent
-    $mo | Add-UcsMacMemberBlock -From $from_mac -To $to_mac -ModifyPresent
-}
 
 # Disconnect from UCS Manager
 Disconnect-Ucs -Ucs $handle
