@@ -29,6 +29,7 @@ $key = ConvertTo-SecureString (Get-Content .\ucs.key)
 $handle = Connect-Ucs -Key $key -LiteralPath .\ucs.xml
 
 # Set UCS system name
+#
 # This uses the generic Set-UcsManagedObject method, because no specific cmdlet exists
 $hostname = $hostname_prefix + $site_id + $pod_id
 Get-UcsManagedObject -Dn sys | Set-UcsManagedObject -PropertyMap @{name = $hostname} -Force
@@ -69,6 +70,7 @@ Get-UcsLanCloud | Add-UcsVlan -Id $iscsi_b_vlan -Name $iscsi_b_vlan"_iscsi_b_dc"
 Get-UcsLanCloud | Add-UcsVlan -Id $nfs_vlan -Name $nfs_vlan"_nfs_dc"$site_id -DefaultNet no -ModifyPresent
 
 # Create dynamic VLANs for VMs
+#
 # To save time during reruns of the script, we check for existence of the VLAN instead of using the -ModifyPresent switch
 $mo = Get-UcsLanCloud
 $vlan_names = $mo | Get-UcsManagedObject -ClassId fabricVlan | Select Name | Out-String -Stream
@@ -89,6 +91,7 @@ Get-UcsPowerControlPolicy | Set-UcsPowerControlPolicy -Redundancy grid -Force
 Get-UcsChassisDiscoveryPolicy | Set-UcsChassisDiscoveryPolicy -Action 1-link -LinkAggregationPref port-channel -Force
 
 # Create BIOS policy for ESXi hosts
+#
 # Based on recommendations from https://datacenterdennis.wordpress.com/2016/12/09/cisco-ucs-bios-policy-recommendations/
 $mo = Get-UcsOrg -Level root | Add-UcsBiosPolicy -Descr "BIOS policy for generic ESXi hosts" -Name "esxi_bios" -RebootOnUpdate yes -ModifyPresent
 $mo | Set-UcsBiosVfSerialPortAEnable -VpSerialPortAEnable disabled -Force
@@ -153,6 +156,15 @@ Get-UcsOrg -Level root | Get-UcsMaintenancePolicy -Name "default" | Set-UcsMaint
 # Create a network control policy that enables CDP and disables LLDP
 $mo = Get-UcsOrg -Level root  | Add-UcsNetworkControlPolicy -Name "cdp_on_lldp_off" -Cdp enabled -LldpReceive disabled -LldpTransmit disabled -UplinkFailAction link-down -MacRegisterMode only-native-vlan -Descr "CDP enabled, LLDP disabled" -ModifyPresent
 $mo | Add-UcsPortSecurityConfig -Forge allow -ModifyPresent 
+
+# Create mac address pools for fabric A and B
+foreach ($fabric in @("A", "B")) {
+    $mac_pool_name = "esxi_mac_"+$fabric.ToLower()+"_dc"+$site_id
+    $from_mac = "00:25:B5:"+$site_id+$pod_id+":"+$fabric+"0:00"
+    $to_mac = "00:25:B5:"+$site_id+$pod_id+":"+$fabric+"1:FF"
+    $mo = Get-UcsOrg -Level root  | Add-UcsMacPool -Name $mac_pool_name -AssignmentOrder sequential -ModifyPresent
+    $mo | Add-UcsMacMemberBlock -From $from_mac -To $to_mac -ModifyPresent
+}
 
 # Disconnect from UCS Manager
 Disconnect-Ucs -Ucs $handle
