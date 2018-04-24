@@ -13,8 +13,8 @@ $hostname_prefix = "ucspe-"
 
 $ip_prefix = "192.168"
 $mgmt_block = "218"
-$iscsi_blocks = @{A = "219" 
-                  B = "220"}
+$iscsi_blocks = @{A = "103" 
+                  B = "104"}
 $ip_mask = "255.255.255.0"
 $ip_pool_size = 100
 
