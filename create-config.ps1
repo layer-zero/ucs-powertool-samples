@@ -9,6 +9,8 @@ $pod_id = 1
 
 $environments = @("prd", "acc", "tst", "dev")
 
+$fabrics = @("A", "B")
+
 $hostname_prefix = "ucspe-"
 
 $ip_prefix = "192.168"
@@ -68,7 +70,7 @@ foreach ($env in $environments) {
 }
 
 # Create mac address pools for fabric A and B
-foreach ($fabric in @("A", "B")) {
+foreach ($fabric in $fabrics) {
     $pool_name = "esxi_mac_"+$fabric.ToLower()+"_dc"+$site_id
     $from_mac = "00:25:B5:"+$site_id+$pod_id+":"+$fabric+"0:00"
     $to_mac = "00:25:B5:"+$site_id+$pod_id+":"+$fabric+"1:FF"
@@ -80,7 +82,7 @@ foreach ($fabric in @("A", "B")) {
 $sub_pool_size = [int]($ip_pool_size/$environments.Length)
 $n = 0
 foreach ($env in $environments) {
-    foreach ($fabric in @("A", "B")){
+    foreach ($fabric in $fabrics){
 		$pool_name =  $env+"_iscsi_ip_"+$fabric.ToLower()+"_dc"+$site_id
 		$first_host = 1 + $n * $sub_pool_size
 		$last_host = $first_host + $sub_pool_size - 1
@@ -187,6 +189,11 @@ Get-UcsOrg -Level root | Get-UcsMaintenancePolicy -Name "default" | Set-UcsMaint
 # Create a network control policy that enables CDP and disables LLDP
 $mo = Get-UcsOrg -Level root  | Add-UcsNetworkControlPolicy -Name "cdp_on_lldp_off" -Cdp enabled -LldpReceive disabled -LldpTransmit disabled -UplinkFailAction link-down -MacRegisterMode only-native-vlan -Descr "CDP enabled, LLDP disabled" -ModifyPresent
 $mo | Add-UcsPortSecurityConfig -Forge allow -ModifyPresent 
+
+# Create management vNIC template redundancy pair
+$mo = Get-UcsOrg -Level root  | Add-UcsVnicTemplate -Name "esxi_mgmt_a" -IdentPoolName "esxi_mac_a_dc$site_id" -SwitchId A -RedundancyPairType primary -PeerRedundancyTemplName "esxi_mgmt_b" -CdnSource vnic-name -Mtu 1500 -NwCtrlPolicyName "cdp_on_lldp_off" -TemplType updating-template -ModifyPresent
+$mo | Add-UcsVnicInterface -ModifyPresent -Name $mgmt_vlan"_mgmt_dc"$site_id -DefaultNet "no"
+$mo = Get-UcsOrg -Level root  | Add-UcsVnicTemplate -Name "esxi_mgmt_b" -IdentPoolName "esxi_mac_b_dc$site_id" -SwitchId B -RedundancyPairType secondary -PeerRedundancyTemplName "esxi_mgmt_a" -CdnSource vnic-name -ModifyPresent
 
 # Disconnect from UCS Manager
 Disconnect-Ucs -Ucs $handle
