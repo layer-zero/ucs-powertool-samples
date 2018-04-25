@@ -255,5 +255,27 @@ $mo_2 | Add-UcsVnicVlan -VlanName $iscsi_b_vlan"_iscsi_b_dc"$site_id -ModifyPres
 $mo | Add-UcsVnic -Name "vmnic8" -NwTemplName "esxi_vm_a" -AdaptorProfileName "VMWare" -Order "9" -ModifyPresent
 $mo | Add-UcsVnic -Name "vmnic9" -NwTemplName "esxi_vm_b" -AdaptorProfileName "VMWare" -Order "10" -ModifyPresent
 
+# Create server pool qualification for 384GB memory servers
+$mo = Get-UcsOrg -Level root | Add-UcsServerPoolQualification -Name "384gb_ram" -ModifyPresent
+$mo | Add-UcsMemoryQualification -MinCap "393216" -MaxCap "393216" -ModifyPresent
+
+# Create server pool qualification for 512GB memory servers
+$mo = Get-UcsOrg -Level root | Add-UcsServerPoolQualification -Name "512gb_ram" -ModifyPresent
+$mo | Add-UcsMemoryQualification -MinCap "524288" -MaxCap "524288" -ModifyPresent
+
+# Create server pool qualification for 1TB memory servers
+$mo = Get-UcsOrg -Level root | Add-UcsServerPoolQualification -Name "1tb_ram" -ModifyPresent
+$mo | Add-UcsMemoryQualification -MinCap "1048576" -MaxCap "1048576" -ModifyPresent
+
+# Create server pools
+Get-UcsOrg -Level root | Add-UcsServerPool -Name "basic" -ModifyPresent
+Get-UcsOrg -Level root | Add-UcsServerPool -Name "general_purpose" -ModifyPresent
+Get-UcsOrg -Level root | Add-UcsServerPool -Name "performance" -ModifyPresent
+
+# Create server pool policies
+Get-UcsOrg -Level root | Add-UcsServerPoolPolicy -Name "basic" -PoolDn "org-root/compute-pool-basic" -Qualifier "384gb_ram"
+Get-UcsOrg -Level root | Add-UcsServerPoolPolicy -Name "general_purpose" -PoolDn "org-root/compute-pool-general_purpose" -Qualifier "512gb_ram"
+Get-UcsOrg -Level root | Add-UcsServerPoolPolicy -Name "performance" -PoolDn "org-root/compute-pool-performance" -Qualifier "1tb_ram"
+
 # Disconnect from UCS Manager
 Disconnect-Ucs -Ucs $handle
