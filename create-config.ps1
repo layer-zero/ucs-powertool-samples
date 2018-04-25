@@ -192,8 +192,26 @@ $mo | Add-UcsPortSecurityConfig -Forge allow -ModifyPresent
 
 # Create management vNIC template redundancy pair
 $mo = Get-UcsOrg -Level root  | Add-UcsVnicTemplate -Name "esxi_mgmt_a" -IdentPoolName "esxi_mac_a_dc$site_id" -SwitchId A -RedundancyPairType primary -PeerRedundancyTemplName "esxi_mgmt_b" -CdnSource vnic-name -Mtu 1500 -NwCtrlPolicyName "cdp_on_lldp_off" -TemplType updating-template -ModifyPresent
-$mo | Add-UcsVnicInterface -ModifyPresent -Name $mgmt_vlan"_mgmt_dc"$site_id -DefaultNet "no"
+$mo | Add-UcsVnicInterface -Name $mgmt_vlan"_mgmt_dc"$site_id -DefaultNet no -ModifyPresent
 $mo = Get-UcsOrg -Level root  | Add-UcsVnicTemplate -Name "esxi_mgmt_b" -IdentPoolName "esxi_mac_b_dc$site_id" -SwitchId B -RedundancyPairType secondary -PeerRedundancyTemplName "esxi_mgmt_a" -CdnSource vnic-name -ModifyPresent
+
+# Create vMotion vNIC template redundancy pair
+$mo = Get-UcsOrg -Level root  | Add-UcsVnicTemplate -Name "esxi_vmotion_a" -IdentPoolName "esxi_mac_a_dc$site_id" -SwitchId A -RedundancyPairType primary -PeerRedundancyTemplName "esxi_vmotion_b" -CdnSource vnic-name -Mtu 9000 -NwCtrlPolicyName "cdp_on_lldp_off" -TemplType updating-template -ModifyPresent
+$mo | Add-UcsVnicInterface -Name $vmotion_vlan"_vmotion_dc"$site_id -DefaultNet no -ModifyPresent
+$mo = Get-UcsOrg -Level root  | Add-UcsVnicTemplate -Name "esxi_vmotion_b" -IdentPoolName "esxi_mac_b_dc$site_id" -SwitchId B -RedundancyPairType secondary -PeerRedundancyTemplName "esxi_vmotion_a" -CdnSource vnic-name -ModifyPresent
+
+# Create NFS vNIC template redundancy pair
+$mo = Get-UcsOrg -Level root  | Add-UcsVnicTemplate -Name "esxi_nfs_a" -IdentPoolName "esxi_mac_a_dc$site_id" -SwitchId A -RedundancyPairType primary -PeerRedundancyTemplName "esxi_nfs_b" -CdnSource vnic-name -Mtu 9000 -NwCtrlPolicyName "cdp_on_lldp_off" -TemplType updating-template -ModifyPresent
+$mo | Add-UcsVnicInterface -Name $nfs_vlan"_nfs_dc"$site_id -DefaultNet no -ModifyPresent
+$mo = Get-UcsOrg -Level root  | Add-UcsVnicTemplate -Name "esxi_nfs_b" -IdentPoolName "esxi_mac_b_dc$site_id" -SwitchId B -RedundancyPairType secondary -PeerRedundancyTemplName "esxi_nfs_a" -CdnSource vnic-name -ModifyPresent
+
+# Create iSCSI A vNIC template
+$mo = Get-UcsOrg -Level root  | Add-UcsVnicTemplate -Name "esxi_iscsi_a" -IdentPoolName "esxi_mac_a_dc$site_id" -SwitchId A -Mtu 9000 -NwCtrlPolicyName "cdp_on_lldp_off" -TemplType updating-template -ModifyPresent
+$mo | Add-UcsVnicInterface -Name $iscsi_a_vlan"_iscsi_a_dc"$site_id -DefaultNet yes -ModifyPresent
+
+# Create iSCSI B vNIC template
+$mo = Get-UcsOrg -Level root  | Add-UcsVnicTemplate -Name "esxi_iscsi_b" -IdentPoolName "esxi_mac_b_dc$site_id" -SwitchId A -Mtu 9000 -NwCtrlPolicyName "cdp_on_lldp_off" -TemplType updating-template -ModifyPresent
+$mo | Add-UcsVnicInterface -ModifyPresent -Name $iscsi_b_vlan"_iscsi_b_dc"$site_id -DefaultNet yes
 
 # Disconnect from UCS Manager
 Disconnect-Ucs -Ucs $handle
