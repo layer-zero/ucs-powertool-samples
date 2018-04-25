@@ -102,7 +102,7 @@ foreach ($env in $environments) {
         $iqn_prefix = "iqn.1987-05.com.cisco"
         $iqn_suffix = "ucs-s"+$site_id+"p"+$pod_id+"-"+$env+"-"+$fabric.ToLower()
         $mo = Get-UcsOrg -name $env  | Add-UcsIqnPoolPool -Name $pool_name -AssignmentOrder "sequential" -Prefix $iqn_prefix -ModifyPresent
-        $mo_1 = $mo | Add-UcsIqnPoolBlock -From 1 -Suffix $iqn_suffix -To 160
+        $mo_1 = $mo | Add-UcsIqnPoolBlock -From 1 -Suffix $iqn_suffix -To 160 -ModifyPresent
     }
 }
 
@@ -222,7 +222,14 @@ $mo | Add-UcsVnicInterface -Name $iscsi_a_vlan"_iscsi_a_dc"$site_id -DefaultNet 
 
 # Create iSCSI B vNIC template
 $mo = Get-UcsOrg -Level root  | Add-UcsVnicTemplate -Name "esxi_iscsi_b" -IdentPoolName "esxi_mac_b_dc$site_id" -SwitchId A -Mtu 9000 -NwCtrlPolicyName "cdp_on_lldp_off" -TemplType updating-template -ModifyPresent
-$mo | Add-UcsVnicInterface -ModifyPresent -Name $iscsi_b_vlan"_iscsi_b_dc"$site_id -DefaultNet yes
+$mo | Add-UcsVnicInterface -Name $iscsi_b_vlan"_iscsi_b_dc"$site_id -DefaultNet yes -ModifyPresent
+
+# Create VM vNIC template redundancy pair
+$mo = Get-UcsOrg -Level root  | Add-UcsVnicTemplate -Name "esxi_vm_a" -IdentPoolName "esxi_mac_a_dc$site_id" -SwitchId A -RedundancyPairType primary -PeerRedundancyTemplName "esxi_vm_b" -CdnSource vnic-name -Mtu 1500 -NwCtrlPolicyName "cdp_on_lldp_off" -TemplType updating-template -ModifyPresent
+for ($i=$dynamic_vlan_start;$i -le $dynamic_vlan_end; $i++) {
+    $mo | Add-UcsVnicInterface -Name "vm_dynamic_$i" -DefaultNet no -ModifyPresent
+}
+$mo = Get-UcsOrg -Level root  | Add-UcsVnicTemplate -Name "esxi_vm_b" -IdentPoolName "esxi_mac_b_dc$site_id" -SwitchId B -RedundancyPairType secondary -PeerRedundancyTemplName "esxi_vm_a" -CdnSource vnic-name -ModifyPresent
 
 # Disconnect from UCS Manager
 Disconnect-Ucs -Ucs $handle
