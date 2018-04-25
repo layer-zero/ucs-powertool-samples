@@ -83,7 +83,7 @@ $sub_pool_size = [int]($ip_pool_size/$environments.Length)
 $n = 0
 foreach ($env in $environments) {
     foreach ($fabric in $fabrics){
-		$pool_name =  $env+"_iscsi_ip_"+$fabric.ToLower()+"_dc"+$site_id
+		$pool_name = $env+"_iscsi_ip_"+$fabric.ToLower()+"_dc"+$site_id
 		$first_host = 1 + $n * $sub_pool_size
 		$last_host = $first_host + $sub_pool_size - 1
 		$first_ip = $ip_prefix+"."+$iscsi_blocks[$fabric]+"."+$first_host
@@ -93,6 +93,17 @@ foreach ($env in $environments) {
 		$mo | Add-UcsIpPoolBlock -DefGw $gateway -From $first_ip -To $last_ip -Subnet $ip_mask -ModifyPresent
 	}
 	$n = $n + 1
+}
+
+# Create IQN pools for each environment
+foreach ($env in $environments) {
+    foreach ($fabric in $fabrics){
+        $pool_name = $env+"_iqn_"+$fabric.ToLower()+"_dc"+$site_id
+        $iqn_prefix = "iqn.1987-05.com.cisco"
+        $iqn_suffix = "ucs-s"+$site_id+"p"+$pod_id+"-"+$env+"-"+$fabric.ToLower()
+        $mo = Get-UcsOrg -name $env  | Add-UcsIqnPoolPool -Name $pool_name -AssignmentOrder "sequential" -Prefix $iqn_prefix -ModifyPresent
+        $mo_1 = $mo | Add-UcsIqnPoolBlock -From 1 -Suffix $iqn_suffix -To 160
+    }
 }
 
 # Create static infrastructure VLANs 
