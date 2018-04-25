@@ -106,6 +106,13 @@ foreach ($env in $environments) {
     }
 }
 
+# Populate default UUID pool and set order to sequential
+$first_suffix = "0"+$site_id+"0"+$pod_id+"-000000000001"
+$last_suffix = "0"+$site_id+"0"+$pod_id+"-0000000000FF"
+$mo = Get-UcsOrg -Level root | Get-UcsUuidSuffixPool -Name "default" -LimitScope
+$mo | Set-UcsUuidSuffixPool -AssignmentOrder sequential -Force
+$mo | Add-UcsUuidSuffixBlock -From $first_suffix -To $last_suffix -ModifyPresent
+
 # Create static infrastructure VLANs 
 Get-UcsLanCloud | Add-UcsVlan -Id $mgmt_vlan -Name $mgmt_vlan"_mgmt_dc"$site_id -DefaultNet no -ModifyPresent
 Get-UcsLanCloud | Add-UcsVlan -Id $vmotion_vlan -Name $vmotion_vlan"_vmotion_dc"$site_id -DefaultNet no -ModifyPresent
