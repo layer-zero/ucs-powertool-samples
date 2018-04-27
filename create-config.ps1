@@ -34,10 +34,8 @@ $key = ConvertTo-SecureString (Get-Content .\ucs.key)
 $handle = Connect-Ucs -Key $key -LiteralPath .\ucs.xml
 
 # Set UCS system name
-#
-# This uses the generic Set-UcsManagedObject method, because no specific cmdlet exists
 $hostname = $hostname_prefix + $site_id + $pod_id
-Get-UcsManagedObject -Dn sys | Set-UcsManagedObject -PropertyMap @{name = $hostname} -Force
+Get-UcsTopSystem | Set-UcsTopSystem -Name $hostname -Force
 
 # Create suborganizations
 foreach ($env in $environments) {
