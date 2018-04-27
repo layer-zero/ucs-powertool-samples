@@ -293,8 +293,5 @@ $mo | Add-UcsServerPoolAssignment -Name "general_purpose" -ModifyPresent
 # This uses the generic Set-UcsManagedObject method, because no specific cmdlet seems to exist
 $mo | Add-UcsManagedObject -ClassId vnicConnDef -PropertyMap @{lanConnPolicyName = "esxi_lan"} -ModifyPresent
 
-# $mo_1 = $mo | Get-UcsVnicIscsi -Name "iscsi_a" | Set-UcsVnicIScsi -IdentPoolName "iscsi-initiator-pool" -Force
-
-
 # Disconnect from UCS Manager
 Disconnect-Ucs -Ucs $handle
