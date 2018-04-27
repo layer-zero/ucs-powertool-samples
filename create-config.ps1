@@ -273,9 +273,30 @@ Get-UcsOrg -Level root | Add-UcsServerPool -Name "general_purpose" -ModifyPresen
 Get-UcsOrg -Level root | Add-UcsServerPool -Name "performance" -ModifyPresent
 
 # Create server pool policies
-Get-UcsOrg -Level root | Add-UcsServerPoolPolicy -Name "basic" -PoolDn "org-root/compute-pool-basic" -Qualifier "384gb_ram"
-Get-UcsOrg -Level root | Add-UcsServerPoolPolicy -Name "general_purpose" -PoolDn "org-root/compute-pool-general_purpose" -Qualifier "512gb_ram"
-Get-UcsOrg -Level root | Add-UcsServerPoolPolicy -Name "performance" -PoolDn "org-root/compute-pool-performance" -Qualifier "1tb_ram"
+Get-UcsOrg -Level root | Add-UcsServerPoolPolicy -Name "basic" -PoolDn "org-root/compute-pool-basic" -Qualifier "384gb_ram" -ModifyPresent
+Get-UcsOrg -Level root | Add-UcsServerPoolPolicy -Name "general_purpose" -PoolDn "org-root/compute-pool-general_purpose" -Qualifier "512gb_ram" -ModifyPresent
+Get-UcsOrg -Level root | Add-UcsServerPoolPolicy -Name "performance" -PoolDn "org-root/compute-pool-performance" -Qualifier "1tb_ram" -ModifyPresent
+
+# Create service profile templates for each environment
+$mo = Get-UcsOrg -Level root | Add-UcsServiceProfile `
+    -Name "test" `
+    -IdentPoolName "default" `
+    -LocalDiskPolicyName "no_local_disk" `
+    -BootPolicyName "esxi_iscsi_boot" `
+    -BiosProfileName "esxi_bios" `
+    -MaintPolicyName "user_ack" `
+    -ExtIPState pooled `
+    -ExtIPPoolName "ext-mgmt" `
+    -Type updating-template `
+    -ModifyPresent
+$mo | Add-UcsServerPoolAssignment -Name "general_purpose" -ModifyPresent
+# Add LAN connectivity policy to service profile template
+#
+# This uses the generic Set-UcsManagedObject method, because no specific cmdlet seems to exist
+$mo | Add-UcsManagedObject -ClassId vnicConnDef -PropertyMap @{lanConnPolicyName = "esxi_lan"} -ModifyPresent
+
+# $mo_1 = $mo | Get-UcsVnicIscsi -Name "iscsi_a" | Set-UcsVnicIScsi -IdentPoolName "iscsi-initiator-pool" -Force
+
 
 # Disconnect from UCS Manager
 Disconnect-Ucs -Ucs $handle
