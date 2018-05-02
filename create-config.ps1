@@ -29,6 +29,9 @@ $nfs_vlan = 105
 $dynamic_vlan_start = 1001
 $dynamic_vlan_end = 1200
 
+$target_iqn = "iqn.1992-08.com.netapp:sn.123456789"
+$target_host = "250"
+
 # Connect to UCS Manager using a session xml file and a secure key defined in a key file
 $key = ConvertTo-SecureString (Get-Content .\ucs.key)
 $handle = Connect-Ucs -Key $key -LiteralPath .\ucs.xml
@@ -293,15 +296,21 @@ $mo | Add-UcsServerPoolAssignment -Name "general_purpose" -ModifyPresent
 # This uses the generic Set-UcsManagedObject method, because no specific cmdlet seems to exist
 $mo | Add-UcsManagedObject -ClassId vnicConnDef -PropertyMap @{lanConnPolicyName = "esxi_lan"} -ModifyPresent
 
-# Add iSCSI boot parameters
-$mo_1 = $mo | Add-UcsVnicIScsiBootParams -ModifyPresent | Add-UcsVnicIScsiBootVnic -Name "iscsi_a" -IqnIdentPoolName "acc_iqn_a_dc1" -ModifyPresent
-$mo_2 = $mo_1 | Add-UcsVnicIPv4If -ModifyPresent | Add-UcsManagedObject -ClassId vnicIPv4PooledIscsiAddr -PropertyMap @{} -ModifyPresent
-$mo_2 | Set-UcsVnicIPv4PooledIscsiAddr -IdentPoolName "acc_iscsi_ip_a_dc1" -Force
-Start-UcsTransaction
-$mo_1 | Add-UcsVnicIPv4If -ModifyPresent
-$mo_3 = $mo_1 | Add-UcsVnicIScsiStaticTargetIf -Priority 1 -IpAddress "10.37.37.37" -Name "iqn.1992-08.com.netapp:sn.123456789" -Port 3260 -ModifyPresent
-$mo_3 | Add-UcsVnicLun -Id 0 -ModifyPresent
-Complete-UcsTransaction
-
+# Add iSCSI boot parameters   
+foreach ($fabric in $fabrics) {
+    $target_ip = $ip_prefix+"."+$iscsi_blocks[$fabric]+"."+$target_host
+    $iqn_pool = "acc_iqn_"+$fabric.ToLower()+"_dc"+$site_id
+    $iscsi_ip_pool = "acc_iscsi_ip_"+$fabric.ToLower()+"_dc"+$site_id
+    $iscsi_vnic = "iscsi_"+$fabric.ToLower()
+    $mo_1 = $mo | Add-UcsVnicIScsiBootParams -ModifyPresent | Add-UcsVnicIScsiBootVnic -Name $iscsi_vnic -IqnIdentPoolName $iqn_pool -ModifyPresent
+    $mo_2 = $mo_1 | Add-UcsVnicIPv4If -ModifyPresent | Add-UcsManagedObject -ClassId vnicIPv4PooledIscsiAddr -PropertyMap @{} -ModifyPresent
+    $mo_2 | Set-UcsVnicIPv4PooledIscsiAddr -IdentPoolName $iscsi_ip_pool -Force
+    # For some reason the next section needs to be wrapped in a transaction. When I execute these cmdlets separately the API returns an error.
+    Start-UcsTransaction
+    $mo_1 | Add-UcsVnicIPv4If -ModifyPresent
+    $mo_3 = $mo_1 | Add-UcsVnicIScsiStaticTargetIf -Priority 1 -IpAddress $target_ip -Name $target_iqn -Port 3260 -ModifyPresent
+    $mo_3 | Add-UcsVnicLun -Id 0 -ModifyPresent
+    Complete-UcsTransaction
+}
 # Disconnect from UCS Manager
 Disconnect-Ucs -Ucs $handle
