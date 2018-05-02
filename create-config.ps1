@@ -279,38 +279,49 @@ Get-UcsOrg -Level root | Add-UcsServerPoolPolicy -Name "general_purpose" -PoolDn
 Get-UcsOrg -Level root | Add-UcsServerPoolPolicy -Name "performance" -PoolDn "org-root/compute-pool-performance" -Qualifier "1tb_ram" -ModifyPresent
 
 # Create service profile templates for each environment
-$mo = Get-UcsOrg -Name "acc" | Add-UcsServiceProfile `
-    -Name "test" `
-    -IdentPoolName "default" `
-    -LocalDiskPolicyName "no_local_disk" `
-    -BootPolicyName "esxi_iscsi_boot" `
-    -BiosProfileName "esxi_bios" `
-    -MaintPolicyName "user_ack" `
-    -ExtIPState pooled `
-    -ExtIPPoolName "ext-mgmt" `
-    -Type updating-template `
-    -ModifyPresent
-$mo | Add-UcsServerPoolAssignment -Name "general_purpose" -ModifyPresent
-# Add LAN connectivity policy to service profile template
-#
-# This uses the generic Set-UcsManagedObject method, because no specific cmdlet seems to exist
-$mo | Add-UcsManagedObject -ClassId vnicConnDef -PropertyMap @{lanConnPolicyName = "esxi_lan"} -ModifyPresent
+foreach ($env in $environments){
+    $template_name = $env+"_esxi_dc"+$site_id
+    $kvm_ip_pool = $env+"_kvm_ip_dc"+$site_id
+    $mo = Get-UcsOrg -Name $env | Add-UcsServiceProfile `
+        -Name $template_name `
+        -IdentPoolName "default" `
+        -LocalDiskPolicyName "no_local_disk" `
+        -BootPolicyName "esxi_iscsi_boot" `
+        -BiosProfileName "esxi_bios" `
+        -MaintPolicyName "user_ack" `
+        -ExtIPState pooled `
+        -ExtIPPoolName $kvm_ip_pool `
+        -Type updating-template `
+        -ModifyPresent
+    # Add server pool to service profile template
+    Switch($env){
+    prd {$server_pool = "performance"}
+    dev {$server_pool = "basic"}
+    default {$server_pool = "general_purpose"}
+    }
+    $mo | Add-UcsServerPoolAssignment -Name $server_pool -ModifyPresent
+    # Add LAN connectivity policy to service profile template
+    #
+    # This uses the generic Set-UcsManagedObject method, because no specific cmdlet seems to exist
+    $mo | Add-UcsManagedObject -ClassId vnicConnDef -PropertyMap @{lanConnPolicyName = "esxi_lan"} -ModifyPresent
 
-# Add iSCSI boot parameters   
-foreach ($fabric in $fabrics) {
-    $target_ip = $ip_prefix+"."+$iscsi_blocks[$fabric]+"."+$target_host
-    $iqn_pool = "acc_iqn_"+$fabric.ToLower()+"_dc"+$site_id
-    $iscsi_ip_pool = "acc_iscsi_ip_"+$fabric.ToLower()+"_dc"+$site_id
-    $iscsi_vnic = "iscsi_"+$fabric.ToLower()
-    $mo_1 = $mo | Add-UcsVnicIScsiBootParams -ModifyPresent | Add-UcsVnicIScsiBootVnic -Name $iscsi_vnic -IqnIdentPoolName $iqn_pool -ModifyPresent
-    $mo_2 = $mo_1 | Add-UcsVnicIPv4If -ModifyPresent | Add-UcsManagedObject -ClassId vnicIPv4PooledIscsiAddr -PropertyMap @{} -ModifyPresent
-    $mo_2 | Set-UcsVnicIPv4PooledIscsiAddr -IdentPoolName $iscsi_ip_pool -Force
-    # For some reason the next section needs to be wrapped in a transaction. When I execute these cmdlets separately the API returns an error.
-    Start-UcsTransaction
-    $mo_1 | Add-UcsVnicIPv4If -ModifyPresent
-    $mo_3 = $mo_1 | Add-UcsVnicIScsiStaticTargetIf -Priority 1 -IpAddress $target_ip -Name $target_iqn -Port 3260 -ModifyPresent
-    $mo_3 | Add-UcsVnicLun -Id 0 -ModifyPresent
-    Complete-UcsTransaction
+    # Add iSCSI boot parameters   
+    foreach ($fabric in $fabrics) {
+        $target_ip = $ip_prefix+"."+$iscsi_blocks[$fabric]+"."+$target_host
+        $iqn_pool = $env+"_iqn_"+$fabric.ToLower()+"_dc"+$site_id
+        $iscsi_ip_pool = $env+"_iscsi_ip_"+$fabric.ToLower()+"_dc"+$site_id
+        $iscsi_vnic = "iscsi_"+$fabric.ToLower()
+        $mo_1 = $mo | Add-UcsVnicIScsiBootParams -ModifyPresent | Add-UcsVnicIScsiBootVnic -Name $iscsi_vnic -IqnIdentPoolName $iqn_pool -ModifyPresent
+        $mo_2 = $mo_1 | Add-UcsVnicIPv4If -ModifyPresent | Add-UcsManagedObject -ClassId vnicIPv4PooledIscsiAddr -PropertyMap @{} -ModifyPresent
+        $mo_2 | Set-UcsVnicIPv4PooledIscsiAddr -IdentPoolName $iscsi_ip_pool -Force
+        # For some reason the next section needs to be wrapped in a transaction. When I execute these cmdlets separately the API returns an error.
+        Start-UcsTransaction
+        $mo_1 | Add-UcsVnicIPv4If -ModifyPresent
+        $mo_3 = $mo_1 | Add-UcsVnicIScsiStaticTargetIf -Priority 1 -IpAddress $target_ip -Name $target_iqn -Port 3260 -ModifyPresent
+        $mo_3 | Add-UcsVnicLun -Id 0 -ModifyPresent
+        Complete-UcsTransaction
+    }
 }
+
 # Disconnect from UCS Manager
 Disconnect-Ucs -Ucs $handle
