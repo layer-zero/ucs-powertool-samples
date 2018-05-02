@@ -193,11 +193,14 @@ $mo_1 = $mo | Add-UcsLsbootIScsi -Order 2 -ModifyPresent
 $mo_1 | Add-UcsLsbootIScsiImagePath -ISCSIVnicName "iscsi_a" -Type primary -ModifyPresent
 $mo_1 | Add-UcsLsbootIScsiImagePath -ISCSIVnicName "iscsi_b" -Type secondary -ModifyPresent
 
-# Creat local disk policy for diskless blades
+# Create local disk policy for diskless blades
 Get-UcsOrg -Level root | Add-UcsLocalDiskConfigPolicy -Name "no_local_disk" -Mode no-local-storage -FlexFlashState disable -FlexFlashRAIDReportingState disable -ModifyPresent
 
 # Create local disk policy using RAID-1 for servers with local hard disks or SSDs
 Get-UcsOrg -Level root | Add-UcsLocalDiskConfigPolicy -Name "local_disk_raid1" -Mode raid-mirrored -ProtectConfig yes -FlexFlashState disable -FlexFlashRAIDReportingState disable -ModifyPresent
+
+# Creat local disk policy that accepts any disk configuration
+Get-UcsOrg -Level root | Add-UcsLocalDiskConfigPolicy -Name "accept_any" -Mode any-configuration -FlexFlashState disable -FlexFlashRAIDReportingState disable -ModifyPresent
 
 # Create maintenance policy set to user-ack, apply on next reboot
 Get-UcsOrg -Level root | Add-UcsMaintenancePolicy -Name "user_ack" -UptimeDisr user-ack -SoftShutdownTimer never -TriggerConfig on-next-boot -ModifyPresent
@@ -285,7 +288,7 @@ foreach ($env in $environments){
     $mo = Get-UcsOrg -Name $env | Add-UcsServiceProfile `
         -Name $template_name `
         -IdentPoolName "default" `
-        -LocalDiskPolicyName "no_local_disk" `
+        -LocalDiskPolicyName "accept_any" `
         -BootPolicyName "esxi_iscsi_boot" `
         -BiosProfileName "esxi_bios" `
         -MaintPolicyName "user_ack" `
