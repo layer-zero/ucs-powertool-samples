@@ -52,6 +52,15 @@ Get-UcsDns | Add-UcsDnsServer -name $dns_secondary -modifypresent
 
 Add-UcsPreLoginBanner -Message "This is Layer Zero sandbox UCS emulator $hostname. If you have no reason to be here, just get out." -ModifyPresent
 
+# Configure CallHome global settings
+Get-UcsCallhomeSmtp | Set-UcsCallhomeSmtp -Host "smtp.lab.layerzero.nl" -Port 25 -force
+Get-UcsCallhomeSource | Set-UcsCallhomeSource -Addr "123 Some Street, Someplace" -Phone "+1-800-555-0123" -Contact "Tom Lijnse" -Email "ucsadmin@layerzero.nl" -From "$hostname@layerzero.nl" -ReplyTo "ucsadmin@layerzero.nl" -Urgency "critical" -force
+Get-UcsCallhome | Set-UcsCallhome -AdminState "on" -AlertThrottlingAdminState "on" -force
+ 
+#configure callhome profile
+$mo = Add-UcsCallhomeProfile -AlertGroups "diagnostic","environmental" -Format "fullTxt" -Level "warning" -MaxSize 1000000 -Name "layer_zero" -ModifyPresent
+$mo | Add-UcsCallhomeRecipient -Email "ucsadmin@layerzero.nl" -ModifyPresent
+
 # Create suborganizations
 foreach ($env in $environments) {
     Get-UcsOrg -Level root | Add-UcsOrg $env -ModifyPresent
