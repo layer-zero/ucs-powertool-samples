@@ -17,8 +17,12 @@ $ip_prefix = "192.168"
 $mgmt_block = "218"
 $iscsi_blocks = @{A = "103" 
                   B = "104"}
+
 $ip_mask = "255.255.255.0"
+# For the IP host range used for pools is from $ip_offset to $ip_offset + 2 * ip_pool_size
+# The FI and cluster addresses should fall outside this range 
 $ip_pool_size = 100
+$ip_offset = 50
 
 $mgmt_vlan = 101
 $vmotion_vlan = 102
@@ -46,7 +50,7 @@ foreach ($env in $environments) {
 }
 
 # Assign IP block to ext-mgmt pool and set order to sequential
-$first_host = $ip_pool_size + 1
+$first_host = $ip_offset + $ip_pool_size + 1
 $last_host = $first_host + $ip_pool_size - 1
 $first_ip = $ip_prefix+"."+$mgmt_block+"."+$first_host
 $last_ip = $ip_prefix+"."+$mgmt_block+"."+$last_host
@@ -60,7 +64,7 @@ $sub_pool_size = [int]($ip_pool_size/$environments.Length)
 $n = 0
 foreach ($env in $environments) {
     $pool_name =  $env+"_kvm_ip_dc"+$site_id
-    $first_host = 1 + $n * $sub_pool_size
+    $first_host = $ip_offset + 1 + $n * $sub_pool_size
     $last_host = $first_host + $sub_pool_size - 1
     $first_ip = $ip_prefix+"."+$mgmt_block+"."+$first_host
     $last_ip = $ip_prefix+"."+$mgmt_block+"."+$last_host
@@ -85,7 +89,7 @@ $n = 0
 foreach ($env in $environments) {
     foreach ($fabric in $fabrics){
 		$pool_name = $env+"_iscsi_ip_"+$fabric.ToLower()+"_dc"+$site_id
-		$first_host = 1 + $n * $sub_pool_size
+		$first_host = $ip_offset + 1 + $n * $sub_pool_size
 		$last_host = $first_host + $sub_pool_size - 1
 		$first_ip = $ip_prefix+"."+$iscsi_blocks[$fabric]+"."+$first_host
 		$last_ip = $ip_prefix+"."+$iscsi_blocks[$fabric]+"."+$last_host
