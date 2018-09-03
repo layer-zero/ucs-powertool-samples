@@ -11,6 +11,8 @@ $environments = @("prd", "acc", "tst", "dev")
 
 $fabrics = @("A", "B")
 
+$server_ports = @("1/1-4","1/17-32")
+
 $hostname_prefix = "ucspe-"
 
 $dns_primary = "192.168.218.2"
@@ -26,10 +28,10 @@ $mgmt_block = "218"
 $iscsi_blocks = @{A = "103" 
                   B = "104"}
 $ip_mask = "255.255.255.0"
-# For the IP host range used for pools is from $ip_offset to $ip_offset + 2 * ip_pool_size
+# The IP host range used for the management and iSCSI IP pools runs from '$ip_offset' to '$ip_offset + 2 * ip_pool_size'
 # The FI and cluster addresses should fall outside this range 
-$ip_pool_size = 100
 $ip_offset = 50
+$ip_pool_size = 100
 
 $mgmt_vlan = 101
 $vmotion_vlan = 102
@@ -363,6 +365,16 @@ foreach ($env in $environments){
         $mo_3 = $mo_1 | Add-UcsVnicIScsiStaticTargetIf -Priority 1 -IpAddress $target_ip -Name $target_iqn -Port 3260 -ModifyPresent
         $mo_3 | Add-UcsVnicLun -Id 0 -ModifyPresent
         Complete-UcsTransaction
+    }
+}
+
+# Configure server ports
+foreach ($port_range in $server_ports) {
+    $slot, $first_port, $last_port = $port_range.Split("/").Split("-")
+    for ($i=[int]$first_port;$i -le [int]$last_port; $i++) {
+        foreach ($fabric in $fabrics) {
+        Get-UcsFabricServerCloud -Id $fabric | Add-UcsServerPort -PortId $i -SlotId $slot -ModifyPresent
+        }
     }
 }
 
