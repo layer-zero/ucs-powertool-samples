@@ -16,6 +16,11 @@ $hostname_prefix = "ucspe-"
 $dns_primary = "192.168.218.2"
 $dns_secondary = "8.8.8.8"
 
+$sel_host = "192.168.218.2"
+$sel_user = "ucsbackup"
+$sel_password = "1234QWer"
+$sel_path ="/home/ucsbackup/sel/"
+
 $ip_prefix = "192.168"
 $mgmt_block = "218"
 $iscsi_blocks = @{A = "103" 
@@ -57,9 +62,20 @@ Get-UcsCallhomeSmtp | Set-UcsCallhomeSmtp -Host "smtp.lab.layerzero.nl" -Port 25
 Get-UcsCallhomeSource | Set-UcsCallhomeSource -Addr "123 Some Street, Someplace" -Phone "+1-800-555-0123" -Contact "Tom Lijnse" -Email "ucsadmin@layerzero.nl" -From "$hostname@layerzero.nl" -ReplyTo "ucsadmin@layerzero.nl" -Urgency "critical" -force
 Get-UcsCallhome | Set-UcsCallhome -AdminState "on" -AlertThrottlingAdminState "on" -force
  
-#configure callhome profile
+# Create a CallHome profile
 $mo = Add-UcsCallhomeProfile -AlertGroups "diagnostic","environmental" -Format "fullTxt" -Level "warning" -MaxSize 1000000 -Name "layer_zero" -ModifyPresent
 $mo | Add-UcsCallhomeRecipient -Email "ucsadmin@layerzero.nl" -ModifyPresent
+
+# Set the global power policy to grid redundancy
+Get-UcsOrg -Level root | Get-UcsPowerControlPolicy | Set-UcsPowerControlPolicy -Redundancy "grid" -force
+# Set the chassis discovery policy to port-channel
+Get-UcsOrg -Level root | Get-UcsChassisDiscoveryPolicy | Set-UcsChassisDiscoveryPolicy -Action "1-link" -LinkAggregationPref "port-channel" -force
+
+# Create a SEL policy to backup the SEL logs on a daily basis
+$propMap = @{Dn = "org-root/log-SEL"; Descr = "Backup policy to rotate SEL logs"}
+Set-UcsManagedObject -ClassId sysdebugMEpLogPolicy -PropertyMap $propMap -Force
+$propMap = @{Dn = "org-root/log-SEL/backup"; action="log-full,on-clear,timer"; clearOnBackup="yes"; format="ascii"; hostname=$sel_host; interval="24hours"; proto="scp"; pwd=$sel_password; remotePath=$sel_path; user=$sel_user}
+Set-UcsMo -ClassId "sysdebugBackupBehavior" -PropertyMap $propMap -Force
 
 # Create suborganizations
 foreach ($env in $environments) {
@@ -134,6 +150,9 @@ $last_suffix = "0"+$site_id+"0"+$pod_id+"-0000000000FF"
 $mo = Get-UcsOrg -Level root | Get-UcsUuidSuffixPool -Name "default" -LimitScope
 $mo | Set-UcsUuidSuffixPool -AssignmentOrder sequential -Force
 $mo | Add-UcsUuidSuffixBlock -From $first_suffix -To $last_suffix -ModifyPresent
+
+# Enable jumbo frames for the Best Effort QoS class
+Get-UcsBestEffortQosClass | Set-UcsBestEffortQosClass -Mtu "9216" -force
 
 # Create static infrastructure VLANs 
 Get-UcsLanCloud | Add-UcsVlan -Id $mgmt_vlan -Name $mgmt_vlan"_mgmt_dc"$site_id -DefaultNet no -ModifyPresent
