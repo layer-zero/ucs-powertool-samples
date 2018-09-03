@@ -13,11 +13,13 @@ $fabrics = @("A", "B")
 
 $hostname_prefix = "ucspe-"
 
+$dns_primary = "192.168.218.2"
+$dns_secondary = "8.8.8.8"
+
 $ip_prefix = "192.168"
 $mgmt_block = "218"
 $iscsi_blocks = @{A = "103" 
                   B = "104"}
-
 $ip_mask = "255.255.255.0"
 # For the IP host range used for pools is from $ip_offset to $ip_offset + 2 * ip_pool_size
 # The FI and cluster addresses should fall outside this range 
@@ -43,6 +45,12 @@ $handle = Connect-Ucs -Key $key -LiteralPath .\ucs.xml
 # Set UCS system name
 $hostname = $hostname_prefix + $site_id + $pod_id
 Get-UcsTopSystem | Set-UcsTopSystem -Name $hostname -Force
+
+# Set DNS servers
+Get-UcsDns | Add-UcsDnsServer -name $dns_primary -modifypresent
+Get-UcsDns | Add-UcsDnsServer -name $dns_secondary -modifypresent
+
+Add-UcsPreLoginBanner -Message "This is Layer Zero sandbox UCS emulator $hostname. If you have no reason to be here, just get out." -ModifyPresent
 
 # Create suborganizations
 foreach ($env in $environments) {
